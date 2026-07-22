@@ -216,3 +216,19 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# AFA Job Scraper - generated Excel files
+*.xlsx
+!cloud-function/config/*.xlsx
+
+# Service account keys (never commit)
+*service-account*.json
+*service_account*.json
+*.sa-key.json
+
+# Cloud Function local output directory
+cloud-function/output/
+
+
+.dev/
+.github/
