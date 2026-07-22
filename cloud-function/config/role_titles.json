@@ -1,0 +1,42 @@
+{
+  "_note": "Configuration for the weekly AFA job scraper Cloud Function.",
+  "_docs": {
+    "drive_folder_id": "The ID of the shared Google Drive folder where the master Excel file is stored. Share this folder with the service account email.",
+    "master_file_name": "The filename of the master Excel workbook stored in the Drive folder.",
+    "groups": "Array of job title groups. Each group becomes a sheet in the Excel workbook. Each title in 'titles' is queried separately against the AFA API."
+  },
+  "drive_folder_id": "YOUR_GOOGLE_DRIVE_FOLDER_ID",
+  "master_file_name": "job_listings_master.xlsx",
+  "groups": [
+    {
+      "name": "Radar Engineers",
+      "titles": [
+        "radar perception",
+        "system designer radar",
+        "systemarchitekt radar",
+        "radar Signalverarbeitung",
+        "funktionsentwicklung radar",
+        "radar"
+      ]
+    },
+    {
+      "name": "Perception Engineers",
+      "titles": [
+        "perception engineer",
+        "perception software",
+        "sensor fusion engineer",
+        "radar perception",
+        "radar machine learning"
+      ]
+    },
+    {
+      "name": "system integration",
+      "titles": [
+        "radar integration",
+        "radar application",
+        "adas engineer",
+        "autonome fahrfunktionen"
+      ]
+    }
+  ]
+}
