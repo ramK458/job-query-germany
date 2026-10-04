@@ -41,19 +41,43 @@ class DriveClient:
         logger.info("Downloaded id=%s (%d bytes)", file_id, len(content))
         return content
 
-    def create_file(self, folder_id: str, filename: str, content: bytes) -> str:
+    def create_file(
+        self,
+        folder_id: str,
+        filename: str,
+        content: bytes,
+        app_properties: dict[str, str] | None = None,
+    ) -> str:
         """Upload a new file to *folder_id* and return its ID."""
         meta = {"name": filename, "parents": [folder_id]}
+        if app_properties:
+            meta["appProperties"] = app_properties
         media = MediaIoBaseUpload(BytesIO(content), mimetype=MIME, resumable=True)
         fid = self.service.files().create(body=meta, media_body=media, fields="id").execute().get("id")
         logger.info("Created '%s' (id=%s)", filename, fid)
         return fid
 
-    def update_file(self, file_id: str, content: bytes) -> None:
-        """Overwrite an existing file."""
+    def update_file(
+        self,
+        file_id: str,
+        content: bytes,
+        app_properties: dict[str, str] | None = None,
+    ) -> None:
+        """Overwrite a file and update metadata in the same Drive request."""
         media = MediaIoBaseUpload(BytesIO(content), mimetype=MIME, resumable=True)
-        self.service.files().update(fileId=file_id, media_body=media).execute()
+        body = {"appProperties": app_properties} if app_properties else None
+        self.service.files().update(fileId=file_id, body=body, media_body=media).execute()
         logger.info("Updated id=%s (%d bytes)", file_id, len(content))
+
+    def get_app_property(self, file_id: str, key: str) -> str | None:
+        """Return one private application property from a Drive file."""
+        meta = self.service.files().get(fileId=file_id, fields="appProperties").execute()
+        return (meta.get("appProperties") or {}).get(key)
+
+    def update_app_properties(self, file_id: str, properties: dict[str, str]) -> None:
+        """Update private application metadata without changing file content."""
+        self.service.files().update(fileId=file_id, body={"appProperties": properties}).execute()
+        logger.info("Updated app properties for id=%s", file_id)
 
     @staticmethod
     def _load_credentials() -> Credentials:

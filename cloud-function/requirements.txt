@@ -1,6 +1,8 @@
-# AFA Job Scraper Cloud Function dependencies
-google-api-python-client>=2.0.0
-google-auth>=2.0.0
-openpyxl>=3.0.0
-requests>=2.28.0
-Flask>=2.0.0
+# AFA Job Scraper dependencies — used for local runs and the deployed container.
+# The Google libraries are only needed for RUN_ENV=gcp; see docs/DEVELOPER_GUIDE.md.
+google-api-python-client>=2.140.0
+google-auth>=2.35.0
+openpyxl>=3.1.5
+requests>=2.32.0
+Flask>=3.0.0
+gunicorn>=22.0.0

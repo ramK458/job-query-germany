@@ -1,0 +1,17 @@
+# Keep the image small and reproducible: never ship local state or secrets.
+.venv/
+venv/
+output/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.git/
+.gitignore
+.DS_Store
+docs/
+*.aux
+*.log
+*.pdf
+*.xlsx
+service-account*.json
+*.bak

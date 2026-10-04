@@ -3,39 +3,70 @@
   "_docs": {
     "drive_folder_id": "The ID of the shared Google Drive folder where the master Excel file is stored. Share this folder with the service account email.",
     "master_file_name": "The filename of the master Excel workbook stored in the Drive folder.",
-    "groups": "Array of job title groups. Each group becomes a sheet in the Excel workbook. Each title in 'titles' is queried separately against the AFA API."
+    "groups": "Array of job title groups. Each group becomes a sheet in the Excel workbook. Each title in 'titles' is queried separately against the AFA API.",
+    "tuning": "The AFA 'was' parameter ANDs all words: 'radar zzzz' returns 0, 'radar' returns 164. More words = fewer, more precise hits. Counts in _expected_hits are 45-day lookbacks verified 2026-09-29 and will drift.",
+    "avoid": "Do NOT add bare German nouns: 'wahrnehmung' (2353 hits, mostly legal 'Wahrnehmung von Aufgaben'), 'regelung' (2560), 'sensorik' (1267), 'robotik' (846), 'embedded software' (816), 'bildverarbeitung' (186). They swamp a sheet with unrelated roles. Also skip 'autonomes fahren' (93 hits, top results are Testfahrer/Fahrer) and 'fahrerassistenzsysteme' (59 hits, 58% Kfz-Mechatroniker)."
   },
   "drive_folder_id": "YOUR_GOOGLE_DRIVE_FOLDER_ID",
   "master_file_name": "job_listings_master.xlsx",
+  "_expected_hits": {
+    "_comment": "Approximate per-group totals from a 45-day window; overlap inside a group is de-duplicated by refnr.",
+    "Radar Signal & Algorithms": 31,
+    "Radar Software & Embedded": 41,
+    "Radar System Engineering": 90,
+    "Perception & Sensor Fusion": 139
+  },
   "groups": [
     {
-      "name": "Radar Engineers",
+      "name": "Radar Signal & Algorithms",
       "titles": [
-        "radar perception",
-        "system designer radar",
-        "systemarchitekt radar",
-        "radar Signalverarbeitung",
-        "funktionsentwicklung radar",
-        "radar"
+        "radar signalverarbeitung",
+        "radar signal processing",
+        "radar signal",
+        "radar algorithmen",
+        "radar algorithm",
+        "radar tracking",
+        "mimo radar",
+        "simulation"
       ]
     },
     {
-      "name": "Perception Engineers",
+      "name": "Radar Software & Embedded",
       "titles": [
+        "radar software",
+        "radar softwareentwicklung",
+        "radar software engineer",
+        "softwareentwickler radar",
+        "software entwickler",
+        "software engineer"
+      ]
+    },
+    {
+      "name": "Radar System Engineering",
+      "titles": [
+        "radar systemingenieur",
+        "systemingenieur radar",
+        "radar system engineer",
+        "system engineer radar",
+        "radar systementwicklung",
+        "radarsysteme",
+        "radar systems"
+      ]
+    },
+    {
+      "name": "Perception & Sensor Fusion",
+      "titles": [
+        "radar perception",
         "perception engineer",
         "perception software",
-        "sensor fusion engineer",
-        "radar perception",
-        "radar machine learning"
-      ]
-    },
-    {
-      "name": "system integration",
-      "titles": [
-        "radar integration",
-        "radar application",
-        "adas engineer",
-        "autonome fahrfunktionen"
+        "sensor fusion",
+        "sensordatenfusion",
+        "sensorfusion",
+        "multi sensor daten fusion",
+        "datenfusion",
+        "lidar",
+        "adas",
+        "autonome fahren"
       ]
     }
   ]

@@ -12,8 +12,9 @@ _LINK_FONT = Font(color="0563C1", underline="single")
 
 logger = logging.getLogger(__name__)
 
-HEADERS = ["Role Title", "Job Title", "Company Name", "Location", "Salary Range", "Link", "Job ID", "Posted Date"]
-WIDTHS = [22, 40, 30, 22, 14, 55, 14, 16]
+HEADERS = ["Role Title", "Job Title", "Company Name", "Location", "Salary Range",
+           "Link", "Job ID", "Start Date", "Posted Date"]
+WIDTHS = [22, 45, 30, 22, 26, 55, 22, 14, 14]
 
 _HF = Font(bold=True, color="FFFFFF", size=11)
 _HFILL = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
@@ -36,7 +37,15 @@ def _write_header(ws) -> None:
         c = ws.cell(row=1, column=i, value=h)
         c.font, c.fill, c.alignment, c.border = _HF, _HFILL, _HA, _BORDER
     ws.freeze_panes = "A2"
-    ws.auto_filter.ref = f"A1:{get_column_letter(len(HEADERS))}1"
+
+
+def _set_filter(ws) -> None:
+    """Apply the auto-filter across the header *and* the data rows.
+
+    Excel treats a single-row filter range as having no data, so a
+    ``A1:<last>1`` reference leaves the dropdowns filtering nothing.
+    """
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(HEADERS))}{max(1, ws.max_row)}"
 
 
 def _format_rows(ws, start: int, end: int) -> None:
@@ -50,7 +59,9 @@ def _format_rows(ws, start: int, end: int) -> None:
 
 def _to_row(job: dict) -> list:
     return [job.get("search_term", ""), job.get("titel", ""), job.get("arbeitgeber", "N/A"),
-            job.get("ort", "N/A"), "N/A", job.get("url", ""), job.get("refnr", ""), job.get("eintrittsdatum", "N/A")]
+            job.get("ort", "N/A"), job.get("gehalt", "N/A"), job.get("url", ""),
+            job.get("refnr", ""), job.get("eintrittsdatum", "N/A"),
+            job.get("veroeffentlichungsdatum", "N/A")]
 
 
 def _make_links(ws, start: int, end: int) -> None:
@@ -88,6 +99,7 @@ def create_new_workbook(groups_data: dict[str, list[dict]]) -> bytes:
             ws.append(_to_row(j))
         _format_rows(ws, 2, len(jobs) + 1)
         _make_links(ws, 2, len(jobs) + 1)
+        _set_filter(ws)
     logger.info("Created workbook with %d sheets", len(groups_data))
     return _to_bytes(wb)
 
@@ -115,5 +127,6 @@ def append_to_workbook(workbook_bytes: bytes, groups_data: dict[str, list[dict]]
         if appended:
             _format_rows(ws, start_row, ws.max_row)
             _make_links(ws, start_row, ws.max_row)
+        _set_filter(ws)
         logger.info("Sheet '%s': appended %d / %d jobs", sn, appended, len(new_jobs))
     return _to_bytes(wb)

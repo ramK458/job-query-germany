@@ -1,5 +1,11 @@
 # Cloud Function: Weekly AFA Job Scraper
 
+> **Status:** implemented. This note was written against the original design and
+> described the `/pc/v4/app/jobs` endpoint, a 50-result page limit and no salary
+> data. All three are now outdated: AFA retires `v2`/`v4` (they return HTTP 403
+> for every request) and only `/pc/v6/jobs` is served. The sections below have
+> been corrected; see `docs/DEVELOPER_GUIDE.md` for the current API contract.
+
 ## Overview
 
 A GCP Cloud Function that runs weekly to scrape job listings from the **Bundesagentur für Arbeit (AFA)** API, based on configurable role title groups. Results are stored in an Excel workbook hosted on **Google Drive**, enabling incremental appends.
@@ -59,15 +65,19 @@ flowchart TD
 - **Credential source:** Environment variable `GOOGLE_APPLICATION_CREDENTIALS` or Secret Manager
 
 ### 3. AFA Job Scraper (`job_scraper.py`)
-- **Endpoint:** `https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/app/jobs`
+- **Endpoint:** `https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs`
+  (the `v2`/`v4` paths are retired and answer HTTP 403 for every request)
 - **Parameters:**
   - `was`: Role title (search query)
   - `angebotsart`: 1 (regular employment)
   - `arbeitszeit`: vz (full-time)
-  - `veroeffentlichtseit`: 45 (initial) or 7 (subsequent)
-  - `size`: 50 (max results per page)
+  - `veroeffentlichtseit`: 45 (initial) or the checkpoint-derived window (subsequent), capped at 100
+  - `page`: 1-based page number
+  - `size`: 100 (the API's hard maximum; larger values return HTTP 400)
+- **Pagination:** all pages are fetched via `maxErgebnisse`, so no results are silently dropped
+- **Retries:** only transient statuses (408/425/429/5xx) are retried, 3 attempts with backoff. A 401/403 raises `AuthError` immediately because it means the endpoint path or API key is wrong
 - **Deduplication:** Tracks `refnr` (reference number) across all queries to avoid duplicates
-- **Output:** List of dicts with fields: `search_term`, `titel`, `arbeitgeber`, `ort`, `refnr`, `eintrittsdatum`, `url`
+- **Output:** List of dicts with fields: `search_term`, `titel`, `arbeitgeber`, `ort`, `gehalt`, `refnr`, `eintrittsdatum`, `veroeffentlichungsdatum`, `url`
 
 ### 4. Excel Generator (`excel_generator.py`)
 - **Library:** openpyxl (supports reading and modifying existing workbooks)
@@ -75,15 +85,16 @@ flowchart TD
   | Column | Header | Source |
   |--------|--------|--------|
   | A | Role Title | Search query phrase |
-  | B | Job Title | `job.titel` |
-  | C | Company Name | `job.arbeitgeber` |
-  | D | Location | `job.arbeitsort.ort` |
-  | E | Salary Range | N/A (not available from API) |
-  | F | Link | Constructed URL from `refnr` |
-  | G | Job ID | `job.refnr` |
-  | H | Posted Date | `job.eintrittsdatum` |
+| B | Job Title | `stellenangebotsTitel` |
+| C | Company Name | `firma` |
+| D | Location | `stellenlokationen[0].adresse.ort` |
+| E | Salary Range | `gehaltsspanneVon`/`gehaltsspanneBis` + `verguetungsangabe`, else `N/A` |
+| F | Link | Constructed URL from `refnr` |
+| G | Job ID | `referenznummer` |
+| H | Start Date | `eintrittszeitraum.von` |
+| I | Posted Date | `datumErsteVeroeffentlichung` |
 - **Sheet naming:** Per group name from config (e.g., "Radar Engineers")
-- **Header styling:** Bold, frozen first row, auto-filter
+- **Header styling:** Bold, frozen first row, auto-filter spanning the header *and* data rows
 - **Append mode:** Checks existing `refnr` values to prevent duplicates
 
 ### 5. Configuration (`config/role_titles.json`)
@@ -144,9 +155,9 @@ Cloud Scheduler triggers → main()
 ## Security
 
 - **Service Account:** Dedicated SA with minimal permissions
-- **Drive Scope:** `drive.file` (only files explicitly shared with SA)
-- **Credentials:** Stored in GCP Secret Manager, injected as env var
-- **API Key:** Uses public `jobboerse-jobsuche` key (same as existing scraper)
+- **Drive Scope:** `drive.file` — the app can only see files it created, so the workbook must be created by the first run (or widen the scope to `/auth/drive`)
+- **Credentials:** Application Default Credentials. On GCP the runtime SA is used via the metadata server — no key file or Secret Manager entry is needed. An optional inline `SERVICE_ACCOUNT_JSON` env var is still honoured for local `RUN_ENV=gcp` runs
+- **API Key:** Uses public `jobboerse-jobsuche` key (same as existing scraper). A missing key also produces HTTP 403, which is why 403 is treated as a configuration error rather than a transient failure
 
 ## Dependencies
 
@@ -161,16 +172,19 @@ requests>=2.28.0
 
 ```bash
 # Deploy Cloud Function (v2, HTTP trigger)
+# Set RUN_ENV=gcp so the deployed build writes to Drive instead of ./output/.
 gcloud functions deploy weekly-job-scraper \
+    --gen2 \
     --runtime python312 \
     --trigger-http \
     --entry-point main \
     --source cloud-function/ \
     --region europe-west1 \
     --service-account "scraper-sa@PROJECT.iam.gserviceaccount.com" \
-    --set-secrets "SERVICE_ACCOUNT_JSON=sa-key:latest" \
+    --set-env-vars "RUN_ENV=gcp,DRIVE_FOLDER_ID=YOUR_GOOGLE_DRIVE_FOLDER_ID" \
     --timeout 540s \
-    --memory 512MB
+    --memory 512MB \
+    --no-allow-unauthenticated
 
 # Create Cloud Scheduler job
 gcloud scheduler jobs create http weekly-job-scraper \
@@ -184,6 +198,7 @@ gcloud scheduler jobs create http weekly-job-scraper \
 
 ## Limitations
 
-1. **No salary data** — The AFA public API does not expose per-job salary amounts. The Salary Range column will show "N/A".
-2. **Max 50 results per query** — The API returns max 50 results per request. Pagination is not yet implemented.
-3. **Rate limiting** — A 1-second delay between API calls is applied.
+1. **Sparse salary data** — employers rarely publish pay through this API (roughly 20–25 % of postings in a typical run). The Salary Range column shows `N/A` for the rest.
+2. **100 results per page** — the API's hard limit. All pages are fetched, so no results are dropped, but each extra page costs a rate-limited request.
+3. **Rate limiting** — a 1-second delay between API calls is applied.
+4. **Single writer** — concurrent runs would race on the same workbook, so the deployment caps concurrency at one instance.

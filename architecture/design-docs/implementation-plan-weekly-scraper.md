@@ -1,5 +1,14 @@
 # Implementation Plan: Weekly AFA Job Scraper Cloud Function
 
+> **Status: historical.** This is the plan as originally written and it records the
+> `/pc/v4/app/jobs` endpoint, which AFA has since retired (it now returns HTTP 403
+> for every request). The shipped code uses `/pc/v6/jobs`. Treat the current source
+> and `docs/` as authoritative:
+>
+> - `docs/DEPLOYMENT.md` — Cloud Run + Scheduler
+> - `docs/USER_GUIDE.md` — running it, output format
+> - `docs/DEVELOPER_GUIDE.md` — API contract, module design, tests
+
 ## Overview
 
 This plan breaks down the implementation of a GCP Cloud Function that scrapes the Bundesagentur für Arbeit (AFA) job API on a weekly schedule, storing results in a Google Drive-hosted Excel workbook.
@@ -52,9 +61,9 @@ This plan breaks down the implementation of a GCP Cloud Function that scrapes th
 - Includes a 1-second delay between calls for rate limiting
 
 **API Details:**
-- URL: `https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/app/jobs`
+- URL: `https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs` (the `v2`/`v4` paths are retired and return HTTP 403)
 - Headers: `X-API-Key: jobboerse-jobsuche`
-- Params: `was=<phrase>`, `angebotsart=1`, `arbeitszeit=vz`, `veroeffentlichtseit=<days>`, `size=50`
+- Params: `was=<phrase>`, `angebotsart=1`, `arbeitszeit=vz`, `veroeffentlichtseit=<days>`, `page=<n>`, `size=100` (the API's hard maximum)
 
 **Dependencies:** None
 
@@ -67,8 +76,8 @@ This plan breaks down the implementation of a GCP Cloud Function that scrapes th
 **Description:** Implement a module for creating and updating Excel workbooks using openpyxl:
 - `create_new_workbook(groups_data)` → creates a new workbook with:
   - One sheet per group, named after the group
-  - Header row: Role Title, Job Title, Company Name, Location, Salary Range, Link, Job ID, Posted Date
-  - Bold headers, frozen first row, auto-filter enabled
+  - Header row: Role Title, Job Title, Company Name, Location, Salary Range, Link, Job ID, Start Date, Posted Date
+  - Bold headers, frozen first row, auto-filter enabled **across the data rows, not just row 1**
 - `append_to_workbook(workbook_bytes, groups_data)` → loads existing workbook and appends new rows:
   - Deduplicates by `refnr` (check existing refnrs in sheet before appending)
   - Appends to the correct sheet based on group name
@@ -77,7 +86,7 @@ This plan breaks down the implementation of a GCP Cloud Function that scrapes th
 **Key Requirements:**
 - Must handle both creating new and appending to existing workbooks
 - Deduplication must be robust (track refnrs per sheet)
-- Salary Range column should show "N/A" since the API doesn't expose salary data
+- Salary Range is rendered from `gehaltsspanneVon`/`gehaltsspanneBis` plus `verguetungsangabe`, falling back to "N/A" when the employer published no figure
 
 **Dependencies:** None
 
